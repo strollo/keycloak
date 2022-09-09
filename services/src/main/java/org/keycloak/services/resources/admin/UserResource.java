@@ -50,6 +50,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.models.utils.RoleUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.utils.RedirectUtils;
 import org.keycloak.provider.ProviderFactory;
@@ -116,6 +117,7 @@ import java.util.stream.Stream;
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_ID;
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_USERNAME;
 import static org.keycloak.userprofile.UserProfileContext.USER_API;
+import static org.keycloak.utils.LockObjectsForModification.lockUserSessionsForModification;
 
 /**
  * Base resource for managing users
@@ -172,7 +174,17 @@ public class UserResource {
                 wasPermanentlyLockedOut = session.getProvider(BruteForceProtector.class).isPermanentlyLockedOut(session, realm, user);
             }
 
-            UserProfile profile = session.getProvider(UserProfileProvider.class).create(USER_API, rep.toAttributes(), user);
+            Map<String, List<String>> attributes = new HashMap<>(rep.toAttributes());
+
+            if (rep.getAttributes() == null) {
+                // include existing attributes in case no attributes are set so that validation takes into account the existing
+                // attributes associated with the user
+                for (Map.Entry<String, List<String>> entry : user.getAttributes().entrySet()) {
+                    attributes.putIfAbsent(entry.getKey(), entry.getValue());
+                }
+            }
+
+            UserProfile profile = session.getProvider(UserProfileProvider.class).create(USER_API, attributes, user);
 
             Response response = validateUserProfile(profile, user, session);
             if (response != null) {
@@ -313,7 +325,7 @@ public class UserResource {
         String sessionState = auth.adminAuth().getToken().getSessionState();
         if (authenticatedRealm.getId().equals(realm.getId()) && sessionState != null) {
             sameRealm = true;
-            UserSessionModel userSession = session.sessions().getUserSession(authenticatedRealm, sessionState);
+            UserSessionModel userSession = lockUserSessionsForModification(session, () -> session.sessions().getUserSession(authenticatedRealm, sessionState));
             AuthenticationManager.expireIdentityCookie(realm, session.getContext().getUri(), clientConnection);
             AuthenticationManager.expireRememberMeCookie(realm, session.getContext().getUri(), clientConnection);
             AuthenticationManager.backchannelLogout(session, authenticatedRealm, userSession, session.getContext().getUri(), clientConnection, headers, true);
@@ -932,7 +944,7 @@ public class UserResource {
             throw new NotFoundException("Group not found");
         }
         auth.groups().requireManageMembership(group);
-        if (!user.isMemberOf(group)){
+        if (!RoleUtils.isDirectMember(user.getGroupsStream(),group)){
             user.joinGroup(group);
             adminEvent.operation(OperationType.CREATE).resource(ResourceType.GROUP_MEMBERSHIP).representation(ModelToRepresentation.toRepresentation(group, true)).resourcePath(session.getContext().getUri()).success();
         }

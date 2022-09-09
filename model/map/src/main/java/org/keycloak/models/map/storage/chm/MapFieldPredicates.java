@@ -24,7 +24,6 @@ import org.keycloak.authorization.model.Scope;
 import org.keycloak.events.Event;
 import org.keycloak.events.admin.AdminEvent;
 import org.keycloak.models.ActionTokenValueModel;
-import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.GroupModel;
@@ -51,6 +50,7 @@ import org.keycloak.models.map.role.MapRoleEntity;
 import org.keycloak.models.map.singleUseObject.MapSingleUseObjectEntity;
 import org.keycloak.models.map.storage.QueryParameters;
 import org.keycloak.models.map.user.MapUserConsentEntity;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.storage.SearchableModelField;
 
 import java.util.Comparator;
@@ -59,7 +59,6 @@ import java.util.Map;
 import org.keycloak.models.map.storage.chm.MapModelCriteriaBuilder.UpdatePredicatesFunc;
 import org.keycloak.models.map.storage.ModelCriteriaBuilder.Operator;
 import org.keycloak.models.map.user.MapUserEntity;
-import org.keycloak.models.map.userSession.MapAuthenticatedClientSessionEntity;
 import org.keycloak.models.map.userSession.MapUserSessionEntity;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
 import org.keycloak.storage.StorageId;
@@ -83,7 +82,6 @@ import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
  */
 public class MapFieldPredicates {
 
-    public static final Map<SearchableModelField<AuthenticatedClientSessionModel>, UpdatePredicatesFunc<Object, MapAuthenticatedClientSessionEntity, AuthenticatedClientSessionModel>> CLIENT_SESSION_PREDICATES = basePredicates(AuthenticatedClientSessionModel.SearchableFields.ID);
     public static final Map<SearchableModelField<ClientModel>, UpdatePredicatesFunc<Object, MapClientEntity, ClientModel>> CLIENT_PREDICATES = basePredicates(ClientModel.SearchableFields.ID);
     public static final Map<SearchableModelField<ClientScopeModel>, UpdatePredicatesFunc<Object, MapClientScopeEntity, ClientScopeModel>> CLIENT_SCOPE_PREDICATES = basePredicates(ClientScopeModel.SearchableFields.ID);
     public static final Map<SearchableModelField<GroupModel>, UpdatePredicatesFunc<Object, MapGroupEntity, GroupModel>> GROUP_PREDICATES = basePredicates(GroupModel.SearchableFields.ID);
@@ -135,6 +133,7 @@ public class MapFieldPredicates {
 
         put(USER_PREDICATES, UserModel.SearchableFields.REALM_ID,                 MapUserEntity::getRealmId);
         put(USER_PREDICATES, UserModel.SearchableFields.USERNAME,                 MapUserEntity::getUsername);
+        put(USER_PREDICATES, UserModel.SearchableFields.USERNAME_CASE_INSENSITIVE, MapFieldPredicates::usernameCaseInsensitive);
         put(USER_PREDICATES, UserModel.SearchableFields.FIRST_NAME,               MapUserEntity::getFirstName);
         put(USER_PREDICATES, UserModel.SearchableFields.LAST_NAME,                MapUserEntity::getLastName);
         put(USER_PREDICATES, UserModel.SearchableFields.EMAIL,                    MapUserEntity::getEmail);
@@ -201,12 +200,6 @@ public class MapFieldPredicates {
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.IS_OFFLINE,                MapUserSessionEntity::isOffline);
         put(USER_SESSION_PREDICATES, UserSessionModel.SearchableFields.LAST_SESSION_REFRESH,      MapUserSessionEntity::getLastSessionRefresh);
 
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.REALM_ID,         MapAuthenticatedClientSessionEntity::getRealmId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.CLIENT_ID,        MapAuthenticatedClientSessionEntity::getClientId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.USER_SESSION_ID,  MapAuthenticatedClientSessionEntity::getUserSessionId);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.IS_OFFLINE,       MapAuthenticatedClientSessionEntity::isOffline);
-        put(CLIENT_SESSION_PREDICATES, AuthenticatedClientSessionModel.SearchableFields.TIMESTAMP,        MapAuthenticatedClientSessionEntity::getTimestamp);
-
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.REALM_ID,  MapUserLoginFailureEntity::getRealmId);
         put(USER_LOGIN_FAILURE_PREDICATES, UserLoginFailureModel.SearchableFields.USER_ID,   MapUserLoginFailureEntity::getUserId);
 
@@ -230,6 +223,7 @@ public class MapFieldPredicates {
         put(ACTION_TOKEN_PREDICATES, ActionTokenValueModel.SearchableFields.USER_ID,                    MapSingleUseObjectEntity::getUserId);
         put(ACTION_TOKEN_PREDICATES, ActionTokenValueModel.SearchableFields.ACTION_ID,                  MapSingleUseObjectEntity::getActionId);
         put(ACTION_TOKEN_PREDICATES, ActionTokenValueModel.SearchableFields.ACTION_VERIFICATION_NONCE,  MapSingleUseObjectEntity::getActionVerificationNonce);
+        put(ACTION_TOKEN_PREDICATES, ActionTokenValueModel.SearchableFields.OBJECT_KEY,                 MapSingleUseObjectEntity::getObjectKey);
     }
 
     static {
@@ -246,7 +240,6 @@ public class MapFieldPredicates {
         PREDICATES.put(PermissionTicket.class,                  AUTHZ_PERMISSION_TICKET_PREDICATES);
         PREDICATES.put(Policy.class,                            AUTHZ_POLICY_PREDICATES);
         PREDICATES.put(UserSessionModel.class,                  USER_SESSION_PREDICATES);
-        PREDICATES.put(AuthenticatedClientSessionModel.class,   CLIENT_SESSION_PREDICATES);
         PREDICATES.put(UserLoginFailureModel.class,             USER_LOGIN_FAILURE_PREDICATES);
         PREDICATES.put(Event.class,                             AUTH_EVENTS_PREDICATES);
         PREDICATES.put(AdminEvent.class,                        ADMIN_EVENTS_PREDICATES);
@@ -312,6 +305,18 @@ public class MapFieldPredicates {
         getter = ge -> Optional.ofNullable(ge.getGrantedRoles()).orElse(Collections.emptySet()).contains(roleIdS);
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }
+
+    private static MapModelCriteriaBuilder<Object, MapUserEntity, UserModel> usernameCaseInsensitive(MapModelCriteriaBuilder<Object, MapUserEntity, UserModel> mcb, Operator op, Object[] values) {
+    for (int i = 0; i < values.length; i++) {
+        if (values[i] instanceof String) {
+            values[i] = KeycloakModelUtils.toLowerCaseSafe((String) values[i]);
+        }
+    }
+
+    Predicate<Object> valueComparator = CriteriaOperator.predicateFor(op, values);
+    Function<MapUserEntity, ?> getter = ue -> valueComparator.test(KeycloakModelUtils.toLowerCaseSafe(ue.getUsername()));
+    return mcb.fieldCompare(Boolean.TRUE::equals, getter);
+}
 
     private static MapModelCriteriaBuilder<Object, MapUserEntity, UserModel> getUserConsentClientFederationLink(MapModelCriteriaBuilder<Object, MapUserEntity, UserModel> mcb, Operator op, Object[] values) {
         String providerId = ensureEqSingleValue(UserModel.SearchableFields.CONSENT_CLIENT_FEDERATION_LINK, "provider_id", op, values);
@@ -538,11 +543,11 @@ public class MapFieldPredicates {
 
     private static MapModelCriteriaBuilder<Object, MapUserSessionEntity, UserSessionModel> checkUserSessionContainsAuthenticatedClientSession(MapModelCriteriaBuilder<Object, MapUserSessionEntity, UserSessionModel> mcb, Operator op, Object[] values) {
         String clientId = ensureEqSingleValue(UserSessionModel.SearchableFields.CLIENT_ID, "client_id", op, values);
-        Function<MapUserSessionEntity, ?> getter = use -> (use.getAuthenticatedClientSession(clientId) != null);
+        Function<MapUserSessionEntity, ?> getter = use -> (use.getAuthenticatedClientSession(clientId).isPresent());
         return mcb.fieldCompare(Boolean.TRUE::equals, getter);
     }
 
-    protected static <K, V extends AbstractEntity, M> Map<SearchableModelField<M>, UpdatePredicatesFunc<K, V, M>> basePredicates(SearchableModelField<M> idField) {
+    public static <K, V extends AbstractEntity, M> Map<SearchableModelField<M>, UpdatePredicatesFunc<K, V, M>> basePredicates(SearchableModelField<M> idField) {
         Map<SearchableModelField<M>, UpdatePredicatesFunc<K, V, M>> fieldPredicates = new HashMap<>();
         fieldPredicates.put(idField, MapModelCriteriaBuilder::idCompare);
         return fieldPredicates;

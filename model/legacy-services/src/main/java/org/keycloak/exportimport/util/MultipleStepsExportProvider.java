@@ -31,6 +31,7 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.storage.UserStorageUtil;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,11 @@ public abstract class MultipleStepsExportProvider implements ExportProvider {
                 // Count total number of users
                 if (!exportUsersIntoRealmFile) {
                     usersHolder.totalCount = session.users().getUsersCount(realm, true);
-                    federatedUsersHolder.totalCount = UserStorageUtil.userFederatedStorage(session).getStoredUsersCount(realm);
+                    if (UserStorageUtil.userFederatedStorage(session) != null) {
+                        federatedUsersHolder.totalCount = UserStorageUtil.userFederatedStorage(session).getStoredUsersCount(realm);
+                    } else {
+                        federatedUsersHolder.totalCount = 0;
+                    }
                 }
             }
 
@@ -110,7 +115,7 @@ public abstract class MultipleStepsExportProvider implements ExportProvider {
                     protected void runExportImportTask(KeycloakSession session) throws IOException {
                         RealmModel realm = session.realms().getRealmByName(realmName);
                         usersHolder.users = session.users()
-                                .getUsersStream(realm, usersHolder.currentPageStart, usersHolder.currentPageEnd - usersHolder.currentPageStart, true)
+                                .searchForUserStream(realm, Collections.emptyMap(), usersHolder.currentPageStart, usersHolder.currentPageEnd - usersHolder.currentPageStart)
                                 .collect(Collectors.toList());
 
                         writeUsers(realmName + "-users-" + (usersHolder.currentPageStart / countPerPage) + ".json", session, realm, usersHolder.users);

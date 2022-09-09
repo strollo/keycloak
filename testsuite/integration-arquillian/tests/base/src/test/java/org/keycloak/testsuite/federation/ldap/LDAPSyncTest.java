@@ -33,6 +33,7 @@ import org.keycloak.component.ComponentModel;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.LDAPConstants;
+import org.keycloak.models.LegacyRealmModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
@@ -148,7 +149,7 @@ public class LDAPSyncTest extends AbstractLDAPTest {
 
             // Assert lastSync time updated
             Assert.assertTrue(ctx.getLdapModel().getLastSync() > 0);
-            UserStorageUtil.getUserStorageProvidersStream(testRealm).forEachOrdered(persistentFedModel -> {
+            ((LegacyRealmModel) testRealm).getUserStorageProvidersStream().forEachOrdered(persistentFedModel -> {
                 if (LDAPStorageProviderFactory.PROVIDER_NAME.equals(persistentFedModel.getProviderId())) {
                     Assert.assertTrue(persistentFedModel.getLastSync() > 0);
                 } else {
@@ -306,7 +307,8 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             LDAPTestContext ctx = LDAPTestContext.init(session);
 
             // Remove all users from model
-            UserStoragePrivateUtil.userLocalStorage(session).getUsersStream(ctx.getRealm(), true)
+            UserStoragePrivateUtil.userLocalStorage(session)
+                    .searchForUserStream(ctx.getRealm(), Collections.emptyMap())
                     .collect(Collectors.toList())
                     .forEach(user -> UserStoragePrivateUtil.userLocalStorage(session).removeUser(ctx.getRealm(), user));
 
@@ -355,7 +357,8 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             LDAPTestContext ctx = LDAPTestContext.init(session);
 
             // Remove all users from model
-            UserStoragePrivateUtil.userLocalStorage(session).getUsersStream(ctx.getRealm(), true)
+            UserStoragePrivateUtil.userLocalStorage(session)
+                    .searchForUserStream(ctx.getRealm(), Collections.emptyMap())
                     .peek(user -> System.out.println("trying to delete user: " + user.getUsername()))
                     .collect(Collectors.toList())
                     .forEach(user -> {

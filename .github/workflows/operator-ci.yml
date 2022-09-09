@@ -4,6 +4,9 @@ on:
   push:
     branches-ignore: [main]
   pull_request:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '!.github/workflows/operator-ci.yml'
   schedule:
     - cron: '0 0 * * *'
 
@@ -14,7 +17,7 @@ env:
 
 concurrency:
   # Only run once for latest commit per ref and cancel other (previous) runs.
-  group: ci-operator-keycloak-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -59,7 +62,7 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           cache: 'maven'
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.6.0
+        uses: manusa/actions-setup-minikube@v2.7.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
@@ -76,7 +79,7 @@ jobs:
         run: |
           eval $(minikube -p minikube docker-env)
           (cd quarkus/container && docker build --build-arg KEYCLOAK_DIST=$(ls keycloak-*.tar.gz) . -t keycloak:${{ steps.vars.outputs.version }})
-          (cd operator/app && ./scripts/build-testing-docker-images.sh ${{ steps.vars.outputs.version }} keycloak custom-keycloak)
+          (cd operator && ./scripts/build-testing-docker-images.sh ${{ steps.vars.outputs.version }} keycloak custom-keycloak)
 
       - name: Test operator running locally
         run: |
@@ -104,7 +107,7 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           cache: 'maven'
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.6.0
+        uses: manusa/actions-setup-minikube@v2.7.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
@@ -121,7 +124,7 @@ jobs:
         run: |
           eval $(minikube -p minikube docker-env)
           (cd quarkus/container && docker build --build-arg KEYCLOAK_DIST=$(ls keycloak-*.tar.gz) . -t keycloak:${{ steps.vars.outputs.version }})
-          (cd operator/app && ./scripts/build-testing-docker-images.sh ${{ steps.vars.outputs.version }} keycloak custom-keycloak)
+          (cd operator && ./scripts/build-testing-docker-images.sh ${{ steps.vars.outputs.version }} keycloak custom-keycloak)
 
       - name: Test operator running in cluster
         run: |
@@ -149,7 +152,7 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           cache: 'maven'
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.6.0
+        uses: manusa/actions-setup-minikube@v2.7.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
@@ -163,7 +166,7 @@ jobs:
       - name: Install Yq
         run: sudo snap install yq
       - name: Install OLM
-        working-directory: operator/app
+        working-directory: operator
         run: ./scripts/install-olm.sh
       - name: Download keycloak distribution
         id: download-keycloak-dist
@@ -172,13 +175,13 @@ jobs:
           name: keycloak-distribution
           path: quarkus/container
       - name: Arrange OLM test installation
-        working-directory: operator/app
+        working-directory: operator
         run: |
           eval $(minikube -p minikube docker-env)
           ./scripts/olm-testing.sh ${GITHUB_SHA::6}
 
       - name: Deploy an example Keycloak and wait for it to be ready
-        working-directory: operator/app
+        working-directory: operator
         run: |
           kubectl apply -f src/main/resources/example-postgres.yaml
           ./scripts/check-crds-installed.sh

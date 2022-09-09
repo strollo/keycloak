@@ -60,11 +60,27 @@ public class MigrationTest extends AbstractMigrationTest {
     }
 
     @Test
-    @Migration(versionFrom = "9.")
+    @Migration(versionPrefix = "17.")
+    public void migration17_xTest() throws Exception{
+        testMigratedData(false);
+        testMigrationTo18_x();
+
+        // Always test offline-token login during migration test
+        testOfflineTokenLogin();
+        testExtremelyLongClientAttribute(migrationRealm);
+
+        testMigrationTo20_x();
+    }
+
+    @Test
+    @Migration(versionPrefix = "9.")
+    @AuthServerContainerExclude(AuthServer.QUARKUS)
     public void migration9_xTest() throws Exception {
         testMigratedData(false);
         testMigrationTo12_x(true);
         testMigrationTo18_x();
+        testMigrationTo19_x();
+        testMigrationTo20_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
@@ -72,7 +88,8 @@ public class MigrationTest extends AbstractMigrationTest {
     }
 
     @Test
-    @Migration(versionFrom = "4.")
+    @Migration(versionPrefix = "4.")
+    @AuthServerContainerExclude(AuthServer.QUARKUS)
     public void migration4_xTest() throws Exception {
         testMigratedData();
         testMigrationTo5_x();
@@ -82,6 +99,8 @@ public class MigrationTest extends AbstractMigrationTest {
         testMigrationTo9_x();
         testMigrationTo12_x(true);
         testMigrationTo18_x();
+        testMigrationTo19_x();
+        testMigrationTo20_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
@@ -89,7 +108,8 @@ public class MigrationTest extends AbstractMigrationTest {
     }
 
     @Test
-    @Migration(versionFrom = "3.")
+    @Migration(versionPrefix = "3.")
+    @AuthServerContainerExclude(AuthServer.QUARKUS)
     public void migration3_xTest() throws Exception {
         testMigratedData();
         testMigrationTo4_x();
@@ -100,13 +120,16 @@ public class MigrationTest extends AbstractMigrationTest {
         testMigrationTo9_x();
         testMigrationTo12_x(true);
         testMigrationTo18_x();
+        testMigrationTo19_x();
+        testMigrationTo20_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
     }
 
     @Test
-    @Migration(versionFrom = "2.")
+    @Migration(versionPrefix = "2.")
+    @AuthServerContainerExclude(AuthServer.QUARKUS)
     public void migration2_xTest() throws Exception {
         //the realm with special characters in its id was successfully migrated (no error during migration)
         //removing it now as testMigratedData() expects specific clients and roles
@@ -126,13 +149,16 @@ public class MigrationTest extends AbstractMigrationTest {
         testMigrationTo9_x();
         testMigrationTo12_x(false);
         testMigrationTo18_x();
+        testMigrationTo19_x();
+        testMigrationTo20_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
     }
 
     @Test
-    @Migration(versionFrom = "1.")
+    @Migration(versionPrefix = "1.")
+    @AuthServerContainerExclude(AuthServer.QUARKUS)
     public void migration1_xTest() throws Exception {
         testMigratedData(false);
         testMigrationTo2_x();
@@ -145,6 +171,8 @@ public class MigrationTest extends AbstractMigrationTest {
         testMigrationTo9_x();
         testMigrationTo12_x(false);
         testMigrationTo18_x();
+        testMigrationTo19_x();
+        testMigrationTo20_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
